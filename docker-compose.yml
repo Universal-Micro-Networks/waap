@@ -2,19 +2,31 @@ version: "3.8"
 
 services:
   handler:
-    build: ../handler/Dockerfile
+    build:
+      context: ./
+      dockerfile: handler/Dockerfile
     container_name: handler
     hostname: handler
+    env_file:
+      - config/handler.env
     volumes:
-      - ./:/app
-      - /usr/local/lib/python3.12/site-packages
+      - handler-store:/handler
+    ports:
+      - "8008:8008"
+
   concierge:
-    build: ../concierge/Dockerfile
+    build:
+      context: ./
+      dockerfile: concierge/Dockerfile
     container_name: concierge
     hostname: concierge
+    env_file:
+      - config/concierge.env
     volumes:
-      - ./:/app
-      - /usr/local/lib/python3.12/site-packages
+      - concierge-store:/concierge
+    ports:
+      - "8088:8088"
+
   dynamodb-local:
     image: amazon/dynamodb-local
     container_name: dynamodb-local
@@ -22,7 +34,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./dynamodb:/home/dynamodblocal  # Mount the local directory to the container
+      - db-store:/home/dynamodblocal/data  # Mount the local directory to the container
     working_dir: /home/dynamodblocal
     command: "-jar DynamoDBLocal.jar -sharedDb -dbPath ."
   dynamodb-admin:
@@ -33,3 +45,11 @@ services:
       - "8001:8001"
     environment:
       DYNAMO_ENDPOINT: http://dynamodb-local:8000
+
+volumes:
+     db-store:
+       driver: local
+     handler-store:
+       driver: local
+     concierge-store:
+       driver: local
