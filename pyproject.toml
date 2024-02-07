@@ -6,11 +6,19 @@ authors = ["Tadashi Takahashi <ttakahashi@umn.co.jp>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.12"
-fastapi = "^0.109.0"
-uvicorn = "^0.27.0.post1"
-pydantic = "^2.6.0"
+python = "==3.12"
+fastapi = "==0.109.2"
+uvicorn = "==0.27.0.post1"
+pydantic = "==2.6.1"
+schedule = "==1.2.1"
 
+
+[tool.poetry.group.dev.dependencies]
+pre-commit = "==3.6.0"
+mypy = "==1.8.0"
+black = "==24.1.1"
+isort = "==5.13.2"
+flake8 = "==7.0.0"
 
 [build-system]
 requires = ["poetry-core"]
