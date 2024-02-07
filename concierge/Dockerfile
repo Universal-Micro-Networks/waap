@@ -10,10 +10,10 @@ RUN curl -sSL https://install.python-poetry.org | POETRY_HOME=/opt/poetry python
 
 WORKDIR /app
 
-COPY ./pyproject.toml ./poetry.lock* /app/
+COPY pyproject.toml poetry.lock /app/
 
 RUN poetry install --no-root
 
-COPY . /app
+COPY ./concierge /app
 
-CMD ["python", "main.py"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8008"]
