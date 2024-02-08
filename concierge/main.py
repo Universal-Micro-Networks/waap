@@ -1,8 +1,8 @@
 import uuid
 
-import requests
+import boto3
 import uvicorn
-from fastapi import BackgroundTasks, FastAPI, Request
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 
 app = FastAPI()
 
@@ -34,12 +34,27 @@ async def create_task(
     return {"transaction_id": transaction_id}
 
 
-@app.get("/task/{transaction_id}")
+@app.get("/check/{transaction_id}")
 async def check_task(transaction_id: str):
+    # DynamoDBサービスに接続
+    #    dynamodb = boto3.resource("dynamodb")
+    # ローカルのDynamoDBに接続
+    dynamodb = boto3.resource("dynamodb", endpoint_url="http://127.0.0.1:8000")
+
+    # テーブルを指定
+    table = dynamodb.Table("tasks")
+
     # TODO: ここでDynamoDBのテーブルを検索して、transaction_idに紐づくレコードがあるか確認する
-    # なければ、404を返す
+    # テーブルから全てのアイテムを取得
+    response = table.get_item(Key={"transaction_id": transaction_id})
+    # アイテムがなければ、404を返す
+    if "Item" not in response:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    item = response["Item"]
+    print(item)
     # あれば、そのレコードを返す
-    return {"transaction_id": transaction_id}
+    return {"getItem": item}
 
 
 def _send_api_request(

@@ -1,4 +1,4 @@
-FROM python:3.12.1-slim-bullseye
+FROM python:3.12.0-slim-bullseye
 
 RUN apt update && apt install -y curl vim
 
@@ -17,4 +17,4 @@ RUN pip install schedule
 
 COPY ./handler /app
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8088"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8008"]
