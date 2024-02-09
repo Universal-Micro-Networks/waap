@@ -1,4 +1,5 @@
 import uuid
+from typing import Any, Dict
 
 import boto3
 import requests
@@ -24,11 +25,13 @@ def get_table(name):
     status_code=201,
 )
 async def create_task(
-    request: Request, original_path: str, background_tasks: BackgroundTasks
+    request: Request,
+    data: Dict[Any, Any],
+    original_path: str,
+    background_tasks: BackgroundTasks,
 ):
     headers = dict(request.headers)
     params = dict(request.query_params)
-    data = request.json()
 
     transaction_id = str(uuid.uuid4())
 
@@ -44,8 +47,14 @@ async def create_task(
 
     # テーブルを指定
     table = get_table("tasks")
-    # レコードを追加
-    table.put_item(Item={"transaction_id": transaction_id, "background_result": ""})
+    # レコードを追加status
+    table.put_item(
+        Item={
+            "transaction_id": transaction_id,
+            "backend_response": "",
+            "backend_status": "",
+        }
+    )
 
     return {"transaction_id": transaction_id}
 
@@ -79,8 +88,8 @@ def _send_api_request(
         # アイテムを更新
         table_response = table.update_item(
             Key={"transaction_id": transaction_id},
-            UpdateExpression="set background_result = :r",
-            ExpressionAttributeValues={":r": response.text},
+            UpdateExpression="set backend_response = :r , backend_status = :s",
+            ExpressionAttributeValues={":r": response.text, ":s": response.status_code},
             ReturnValues="UPDATED_NEW",
         )
         print(table_response)
