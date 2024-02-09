@@ -1,10 +1,21 @@
 import uuid
 
 import boto3
+import requests
 import uvicorn
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 
 app = FastAPI()
+
+# グローバル変数としてDynamoDBリソースを作成
+# DynamoDBサービスに接続
+#    dynamodb = boto3.resource("dynamodb")
+# ローカルのDynamoDBに接続
+dynamodb = boto3.resource("dynamodb", endpoint_url="http://127.0.0.1:8000")
+
+
+def get_table(name):
+    return dynamodb.Table(name)
 
 
 @app.api_route(
@@ -31,21 +42,21 @@ async def create_task(
         transaction_id,
     )
 
+    # テーブルを指定
+    table = get_table("tasks")
+    # レコードを追加
+    table.put_item(Item={"transaction_id": transaction_id, "response": ""})
+
     return {"transaction_id": transaction_id}
 
 
 @app.get("/check/{transaction_id}")
 async def check_task(transaction_id: str):
-    # DynamoDBサービスに接続
-    #    dynamodb = boto3.resource("dynamodb")
-    # ローカルのDynamoDBに接続
-    dynamodb = boto3.resource("dynamodb", endpoint_url="http://127.0.0.1:8000")
 
     # テーブルを指定
-    table = dynamodb.Table("tasks")
+    table = get_table("tasks")
 
     # TODO: ここでDynamoDBのテーブルを検索して、transaction_idに紐づくレコードがあるか確認する
-    # テーブルから全てのアイテムを取得
     response = table.get_item(Key={"transaction_id": transaction_id})
     # アイテムがなければ、404を返す
     if "Item" not in response:
@@ -60,9 +71,19 @@ async def check_task(transaction_id: str):
 def _send_api_request(
     method: str, url: str, headers: dict, data: dict, params: dict, transaction_id: str
 ) -> None:
-    requests.request(method, url, headers=headers, data=data, params=params)
-
+    response = requests.request(method, url, headers=headers, data=data, params=params)
     # TODO: ここでDynamoDBにtransaction_idとレスポンスを保存する
+    if response.text is not None:
+        # テーブルを指定
+        table = get_table("tasks")
+        # アイテムを更新
+        response = table.update_item(
+            Key={"transaction_id": transaction_id},
+            UpdateExpression="set response = :r",
+            ExpressionAttributeValues={":r": response.text},
+            ReturnValues="UPDATED_NEW",
+        )
+        print(response.text)
 
 
 if __name__ == "__main__":
