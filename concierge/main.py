@@ -28,7 +28,7 @@ async def create_task(
 ):
     headers = dict(request.headers)
     params = dict(request.query_params)
-    data = await request.json()
+    data = request.json()
 
     transaction_id = str(uuid.uuid4())
 
@@ -45,7 +45,7 @@ async def create_task(
     # テーブルを指定
     table = get_table("tasks")
     # レコードを追加
-    table.put_item(Item={"transaction_id": transaction_id, "response": ""})
+    table.put_item(Item={"transaction_id": transaction_id, "background_result": ""})
 
     return {"transaction_id": transaction_id}
 
@@ -77,13 +77,13 @@ def _send_api_request(
         # テーブルを指定
         table = get_table("tasks")
         # アイテムを更新
-        response = table.update_item(
+        table_response = table.update_item(
             Key={"transaction_id": transaction_id},
-            UpdateExpression="set response = :r",
+            UpdateExpression="set background_result = :r",
             ExpressionAttributeValues={":r": response.text},
             ReturnValues="UPDATED_NEW",
         )
-        print(response.text)
+        print(table_response)
 
 
 if __name__ == "__main__":
