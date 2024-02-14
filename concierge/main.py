@@ -52,7 +52,7 @@ async def create_task(
         Item={
             "transaction_id": transaction_id,
             "backend_response": "",
-            "backend_status": "",
+            "backend_status": BackendStatusType.NOT_STARTED,
         }
     )
 
@@ -80,19 +80,31 @@ async def check_task(transaction_id: str):
 def _send_api_request(
     method: str, url: str, headers: dict, data: dict, params: dict, transaction_id: str
 ) -> None:
+    import time
+
+    time.sleep(25)  # 長時間実行する処理をシミュレート
+    _update_task_table(transaction_id, BackendStatusType.RUNNING, "")
     response = requests.request(method, url, headers=headers, data=data, params=params)
     # TODO: ここでDynamoDBにtransaction_idとレスポンスを保存する
     if response.text is not None:
-        # テーブルを指定
-        table = get_table("tasks")
-        # アイテムを更新
-        table_response = table.update_item(
-            Key={"transaction_id": transaction_id},
-            UpdateExpression="set backend_response = :r , backend_status = :s",
-            ExpressionAttributeValues={":r": response.text, ":s": response.status_code},
-            ReturnValues="UPDATED_NEW",
-        )
-        print(table_response)
+        _update_task_table(transaction_id, BackendStatusType.FINISHED, response.text)
+    else:
+        _update_task_table(transaction_id, BackendStatusType.FAILED, response.text)
+
+
+def _update_task_table(
+    transaction_id: str, backend_status_type: str, backend_response: str
+) -> None:
+    # テーブルを指定
+    table = get_table("tasks")
+    # アイテムを更新
+    table_response = table.update_item(
+        Key={"transaction_id": transaction_id},
+        UpdateExpression="set backend_response = :r ,backend_status = :s",
+        ExpressionAttributeValues={":r": backend_response, ":s": backend_status_type},
+        ReturnValues="UPDATED_NEW",
+    )
+    print(table_response)
 
 
 if __name__ == "__main__":
