@@ -46,6 +46,42 @@ services:
     environment:
       DYNAMO_ENDPOINT: http://dynamodb-local:8000
 
+  minio:
+    image: minio/minio:latest
+    ports:
+      - ${MINIO_PORT:-9000}:9000
+      - ${MINIO_CONSOLE_PORT:-9001}:9001
+    volumes:
+      - ./.data/minio/data:/export
+      - ./.data/minio/config:/root/.minio
+    env_file:
+      - .env
+    environment:
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minio}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minio123}
+    command: server /export --console-address ":9001"
+  createbuckets:
+    image: minio/mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until (/usr/bin/mc config host add myminio http://minio:9000 ${MINIO_ACCESS_KEY:-minio} ${MINIO_SECRET_KEY:-minio123}) do echo '...waiting...' && sleep 1; done;
+      /usr/bin/mc mb myminio/${MINIO_BUCKET_NAME:-mybucket};
+      /usr/bin/mc policy download myminio/${MINIO_BUCKET_NAME:-mybucket};
+      exit 0;
+      "
+
+  mmock:
+    image: jordimartin/mmock:v3.0.0
+    restart: 'always'
+    volumes:
+      - ./mmock:/config
+    ports:
+      - '8082:8082'
+      - '8083:8083'
+
+
 volumes:
      db-store:
        driver: local
