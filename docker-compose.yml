@@ -73,7 +73,7 @@ services:
       "
 
   mmock:
-    image: jordimartin/mmock:v3.0.0
+    image: jordimartin/mmock:latest
     restart: 'always'
     volumes:
       - ./mmock:/config

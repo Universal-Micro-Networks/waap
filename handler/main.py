@@ -4,13 +4,14 @@ import time
 import requests
 import schedule
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 app = FastAPI()
-interval = 1  # 初期の実行間隔
-is_request = False
+seconds_index = 0
+in_progress = False
 request_path = ""
 transaction_id = ""
+response_data = ""
 
 # 環境変数を取得
 concierge_uri: str = os.getenv("CONCIERGE_URI")
@@ -25,6 +26,11 @@ def set_request_path(path: str):
 def set_transaction_id(id: str):
     global transaction_id
     transaction_id = id
+
+
+def set_response_data(data: str):
+    global response_data
+    response_data = data
 
 
 def get_request_path() -> str:
@@ -50,12 +56,12 @@ async def start_request(path: str):
     global concierge_uri
     concierge_uri = str(concierge_uri) + path
     set_request_path(concierge_uri)
-    request_handler()
-    return {"message": "get response from concierge"}
+    result = request_handler()
+    return result
 
 
 def request():
-    global interval, concierge_check_uri, is_request
+    global concierge_check_uri, in_progress, seconds_index
     response = requests.get(
         concierge_check_uri + get_transaction_id(),
         headers={"Content-Type": "application/json"},
@@ -63,27 +69,30 @@ def request():
     data = response.json()
     if data["status"] == "FINISHED":
         print(f"timer finished : {data}")
-        is_request = False
-        interval = 1
+        in_progress = False
         schedule.clear()
-        return True
+        seconds_index = 0
+        set_response_data(data["response"])
+        return data
 
     print(f"next timer set : {data}")
+    # 実行する秒数のリスト
+    seconds = [2, 4, 8, 16, 32, 64, 128, 256]
 
-    if interval < 40:
-        interval += 10  # 実行間隔を10秒増やす
+    if seconds_index < len(seconds):
         schedule.clear()
-        schedule.every(interval).seconds.do(request)
-        print(f"request for concierge : {interval}")
+        schedule.every(seconds[seconds_index]).seconds.do(request)
+        print(f"request for concierge timer set : {seconds[seconds_index]}")
+        seconds_index += 1
     else:
-        interval += 5
+        in_progress = False
         schedule.clear()
+        raise HTTPException(status_code=408, detail="Request timed out")
 
 
 def request_handler() -> bool:
-    global interval, is_request
-    print(f"I'm working start...{interval}")
-    is_request = True
+    global in_progress, response_data
+    in_progress = True
     response = requests.post(
         get_request_path(),
         headers={"Content-Type": "application/json", "x-server-id": "server_id3"},
@@ -93,13 +102,13 @@ def request_handler() -> bool:
     set_transaction_id(data["transaction_id"])
     print(data["transaction_id"])
 
-    schedule.every(interval).seconds.do(request).tag("default")
+    schedule.every(1).seconds.do(request).tag("default")
     while True:
-        if not is_request:
+        if not in_progress:
             break
         schedule.run_pending()
         time.sleep(1)
-    return True
+    return response_data
 
 
 if __name__ == "__main__":
