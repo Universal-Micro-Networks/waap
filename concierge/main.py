@@ -6,9 +6,11 @@ from typing import Any, Dict
 import boto3
 import requests
 import uvicorn
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
+from boto3.dynamodb.table import TableResource
+from boto3.resources.base import ServiceResource
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 
-from model.backend_status_type import BackendStatusType
+from concierge.model.backend_status_type import BackendStatusType
 
 app = FastAPI()
 
@@ -49,13 +51,56 @@ def get_data_source(server_id: str) -> str:
         return "Server ID not found in the JSON file."
 
 
-def get_table(name):
+def get_table() -> TableResource:
+    name = "tasks"
+    try:
+        table = dynamodb.Table(name)
+        status = table.table_status
+        print(f'Table "{name}" exists with status "{status}".')
+    except dynamodb.meta.client.exceptions.ResourceNotFoundException:
+        print(f'Table "{name}" does not exist.')
     return dynamodb.Table(name)
+
+
+@app.get("/task/{original_path}", status_code=201)
+async def create_task_for_get(
+    request: Request,
+    original_path: str,
+    background_tasks: BackgroundTasks,
+    table: TableResource = Depends(get_table),
+):
+    headers = dict(request.headers)
+    server_id = headers.get("x-server-id")
+    server_uri = get_data_source(server_id)
+    server_uri = server_uri + original_path
+    params = dict(request.query_params)
+
+    transaction_id = str(uuid.uuid4())
+
+    background_tasks.add_task(
+        _send_api_request,
+        request.method,
+        server_uri,
+        headers,
+        {},
+        params,
+        transaction_id,
+    )
+
+    # テーブルを指定
+    table.put_item(
+        Item={
+            "transaction_id": transaction_id,
+            "backend_response": "",
+            "backend_status": BackendStatusType.NOT_STARTED,
+        }
+    )
+    return {"transaction_id": transaction_id}
 
 
 @app.api_route(
     "/task/{original_path}",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    methods=["POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     status_code=201,
 )
 async def create_task(
@@ -63,10 +108,10 @@ async def create_task(
     data: Dict[Any, Any],
     original_path: str,
     background_tasks: BackgroundTasks,
+    table: TableResource = Depends(get_table),
 ):
     headers = dict(request.headers)
     server_id = headers.get("x-server-id")
-    print(headers.get("x-server-id"))
     server_uri = get_data_source(server_id)
     server_uri = server_uri + original_path
     print(server_uri)
@@ -84,8 +129,6 @@ async def create_task(
         transaction_id,
     )
 
-    # テーブルを指定
-    table = get_table("tasks")
     # レコードを追加status
     table.put_item(
         Item={
@@ -99,23 +142,26 @@ async def create_task(
 
 
 @app.get("/check/{transaction_id}")
-async def check_task(transaction_id: str):
-
-    # テーブルを指定
-    table = get_table("tasks")
-
+async def check_task(transaction_id: str, table: TableResource = Depends(get_table)):
     # TODO: ここでDynamoDBのテーブルを検索して、transaction_idに紐づくレコードがあるか確認する
     response = table.get_item(Key={"transaction_id": transaction_id})
+    print("GET_ITEM")
+    print(response)
     # アイテムがなければ、404を返す
     if "Item" not in response:
         raise HTTPException(status_code=404, detail="Item not found")
 
     response_data = response.get("Item")
+    print(response_data)
+
+    backend_response = response_data.get("backend_response", {})
+    backend_status = response_data.get("backend_status", "")
 
     # あれば、そのレコードを返す
     return {
-        "response": response_data["backend_response"],
-        "status": response_data["backend_status"],
+        "transaction_id": transaction_id,
+        "backend_response": backend_response,
+        "backend_status": backend_status,
     }
 
 
@@ -124,9 +170,10 @@ def _send_api_request(
 ) -> None:
     import time
 
-    time.sleep(25)  # 長時間実行する処理をシミュレート
+    #    time.sleep(25)  # 長時間実行する処理をシミュレート
     _update_task_table(transaction_id, BackendStatusType.RUNNING, "")
     response = requests.request(method, url, headers=headers, data=data, params=params)
+    print(response)
     # TODO: ここでDynamoDBにtransaction_idとレスポンスを保存する
     if response.text is not None:
         _update_task_table(transaction_id, BackendStatusType.FINISHED, response.text)
@@ -135,11 +182,12 @@ def _send_api_request(
 
 
 def _update_task_table(
-    transaction_id: str, backend_status_type: str, backend_response: str
+    transaction_id: str,
+    backend_status_type: str,
+    backend_response: str,
 ) -> None:
-    # テーブルを指定
-    table = get_table("tasks")
     # アイテムを更新
+    table = get_table()
     table_response = table.update_item(
         Key={"transaction_id": transaction_id},
         UpdateExpression="set backend_response = :r ,backend_status = :s",
