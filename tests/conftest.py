@@ -22,5 +22,4 @@ def override_get_bucket():
 
 
 def override_get_table():
-    print("over_get_table")
     return dynamodb.Table("test_table")

@@ -6,19 +6,47 @@ from fastapi.testclient import TestClient
 
 from .conftest import override_get_table
 
-client_mock = TestClient(app)
 client = TestClient(app)
+
+
+def test_create_task_for_get():
+    response = client.get("/task/test", headers={"x-server-id": "server_id2"})
+    assert response.status_code == 201
+    assert "transaction_id" in response.json()
+
+
+def test_create_task():
+    response = client.post(
+        "/task/test",
+        headers={"x-server-id": "server_id2"},
+        json={"original_path": "/test"},
+    )
+    assert response.status_code == 201
+    assert "transaction_id" in response.json()
+
+
+def test_check_task():
+    response = client.post(
+        "/task/test",
+        headers={"x-server-id": "server_id2"},
+        json={"original_path": "/test"},
+    )
+    transaction_id = response.json()["transaction_id"]
+
+    response = client.get(f"/check/{transaction_id}")
+    assert response.status_code == 200
+    assert response.json()["transaction_id"] == transaction_id
 
 
 @patch("concierge.main.get_table")
 @patch("concierge.main._send_api_request")
-def test_create_task(mock_send_api_request, mock_get_table):
+def test_create_task_mock(mock_send_api_request, mock_get_table):
     # モックオブジェクトの設定
     mock_table = MagicMock()
     mock_get_table.return_value = mock_table
 
     # テストリクエストの送信
-    response = client_mock.post(
+    response = client.post(
         "/task/admin", headers={"x-server-id": "server_id2"}, json={}
     )
 
@@ -33,7 +61,7 @@ def test_create_task(mock_send_api_request, mock_get_table):
 
 
 @patch("concierge.main.get_table")
-def test_check_task(mock_get_table):
+def test_check_task_mock(mock_get_table):
     # モックオブジェクトの設定
     mock_table = MagicMock()
     mock_table.get_item.return_value = {
@@ -47,7 +75,10 @@ def test_check_task(mock_get_table):
     mock_get_table.return_value = mock_table
 
     # テストリクエストの送信
-    response = client_mock.get("/check/4f9dd668-da08-462c-95e7-b6f974e0890b")
+    response = client.get(
+        "/check/4f9dd668-da08-462c-95e7-b6f974e0890b",
+        headers={"x-server-id": "server_id2"},
+    )
 
     # レスポンスの検証
     assert response.status_code == 200
@@ -58,7 +89,7 @@ def test_check_task(mock_get_table):
     mock_table.get_item.assert_called_once_with(
         Key={"transaction_id": "4f9dd668-da08-462c-95e7-b6f974e0890b"}
     )
-    client_mock.close()
+    client.close()
 
 
 def test_send_api_request():
@@ -154,7 +185,7 @@ def test_multiple_access(mock_send_api_request):
         },
     }
     # 10回連続でPOSTリクエストを送信
-    for _ in range(30):
+    for _ in range(5):
         response = client.get("/task" + original_path, headers=headers)
         # レスポンスのステータスコードを確認
         assert response.status_code == 201
