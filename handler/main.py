@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 
@@ -7,6 +8,16 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 
 app = FastAPI()
+
+# スクリプトのあるディレクトリを取得
+dir_path = os.path.dirname(os.path.realpath(__file__))
+# logconf.iniの絶対パスを作成
+logconf_path = os.path.join(dir_path, "../logconf.ini")
+
+# ログ設定を読み込む
+logging.config.fileConfig(logconf_path)
+logger = logging.getLogger("waap")
+
 seconds_index = 0
 in_progress = False
 request_path = ""
@@ -52,11 +63,24 @@ async def say_hello(name: str):
 
 
 @app.get("/service/")
-async def start_request(path: str):
+async def start_service(path: str, server_id: str):
     global concierge_uri
-    concierge_uri = str(concierge_uri) + path
-    set_request_path(concierge_uri)
-    result = request_handler()
+    connect_uri = concierge_uri + path
+    set_request_path(connect_uri)
+    result = request_handler(path, server_id)
+    return result
+
+
+@app.api_route(
+    "/service/",
+    methods=["POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    status_code=201,
+)
+async def create_service(path: str, server_id: str):
+    global concierge_uri
+    connect_uri = concierge_uri + path
+    set_request_path(connect_uri)
+    result = request_handler(path, server_id)
     return result
 
 
@@ -87,20 +111,23 @@ def request():
     else:
         in_progress = False
         schedule.clear()
+        seconds_index = 0
         raise HTTPException(status_code=408, detail="Request timed out")
 
 
-def request_handler() -> bool:
+def request_handler(path: str, server_id: str) -> bool:
+    logger.debug(
+        f"request_handler path: {path}, server_id: {server_id}, concierge_uri: {concierge_uri}"
+    )
     global in_progress, response_data
     in_progress = True
     response = requests.post(
         get_request_path(),
-        headers={"Content-Type": "application/json", "x-server-id": "server_id3"},
-        json={"original_path": "admin"},
+        headers={"Content-Type": "application/json", "x-server-id": server_id},
+        json={"original_path": path},
     )
     data = response.json()
     set_transaction_id(data["transaction_id"])
-    print(data["transaction_id"])
 
     schedule.every(1).seconds.do(request).tag("default")
     while True:

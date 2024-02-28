@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import uuid
 from typing import Any, Dict
@@ -7,12 +8,20 @@ import boto3
 import requests
 import uvicorn
 from boto3.dynamodb.table import TableResource
-from boto3.resources.base import ServiceResource
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 
 from concierge.model.backend_status_type import BackendStatusType
 
 app = FastAPI()
+
+# スクリプトのあるディレクトリを取得
+dir_path = os.path.dirname(os.path.realpath(__file__))
+# logconf.iniの絶対パスを作成
+logconf_path = os.path.join(dir_path, "../logconf.ini")
+
+# ログ設定を読み込む
+logging.config.fileConfig(logconf_path)
+logger = logging.getLogger("concierge")
 
 # グローバル変数としてDynamoDBリソースを作成
 # DynamoDBサービスに接続
@@ -76,6 +85,9 @@ async def create_task_for_get(
     params = dict(request.query_params)
 
     transaction_id = str(uuid.uuid4())
+    logger.debug(
+        f"****** background_tasks.add_task transaction_id {transaction_id}******"
+    )
 
     background_tasks.add_task(
         _send_api_request,
@@ -110,6 +122,7 @@ async def create_task(
     background_tasks: BackgroundTasks,
     table: TableResource = Depends(get_table),
 ):
+    logger.debug("create_task")
     headers = dict(request.headers)
     server_id = headers.get("x-server-id")
     server_uri = get_data_source(server_id)
@@ -118,7 +131,9 @@ async def create_task(
     params = dict(request.query_params)
 
     transaction_id = str(uuid.uuid4())
-
+    logger.debug(
+        f"****** background_tasks.add_task transaction_id {transaction_id}******"
+    )
     background_tasks.add_task(
         _send_api_request,
         request.method,
@@ -143,10 +158,9 @@ async def create_task(
 
 @app.get("/check/{transaction_id}")
 async def check_task(transaction_id: str, table: TableResource = Depends(get_table)):
+    logger.debug(f"Checking task with transaction_id {transaction_id}")
     # TODO: ここでDynamoDBのテーブルを検索して、transaction_idに紐づくレコードがあるか確認する
     response = table.get_item(Key={"transaction_id": transaction_id})
-    print("GET_ITEM")
-    print(response)
     # アイテムがなければ、404を返す
     if "Item" not in response:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -154,31 +168,36 @@ async def check_task(transaction_id: str, table: TableResource = Depends(get_tab
     response_data = response.get("Item")
     print(response_data)
 
-    backend_response = response_data.get("backend_response", {})
+    backend_response = response_data.get("backend_response")
     backend_status = response_data.get("backend_status", "")
 
     # あれば、そのレコードを返す
     return {
         "transaction_id": transaction_id,
-        "backend_response": backend_response,
-        "backend_status": backend_status,
+        "response": backend_response,
+        "status": backend_status,
     }
 
 
 def _send_api_request(
     method: str, url: str, headers: dict, data: dict, params: dict, transaction_id: str
 ) -> None:
-    import time
+    logger.debug(f"Sending request to {url} with transaction_id {transaction_id}")
 
-    #    time.sleep(25)  # 長時間実行する処理をシミュレート
     _update_task_table(transaction_id, BackendStatusType.RUNNING, "")
     response = requests.request(method, url, headers=headers, data=data, params=params)
-    print(response)
+
+    logger.debug(
+        f"ResponseGet {response.text} request to {url} with transaction_id {transaction_id}"
+    )
+
     # TODO: ここでDynamoDBにtransaction_idとレスポンスを保存する
-    if response.text is not None:
+    if response.text != "":
         _update_task_table(transaction_id, BackendStatusType.FINISHED, response.text)
-    else:
+    elif response.status_code != 200:
         _update_task_table(transaction_id, BackendStatusType.FAILED, response.text)
+    else:
+        logger.debug("No response from the backend server.")
 
 
 def _update_task_table(
@@ -192,7 +211,7 @@ def _update_task_table(
         Key={"transaction_id": transaction_id},
         UpdateExpression="set backend_response = :r ,backend_status = :s",
         ExpressionAttributeValues={":r": backend_response, ":s": backend_status_type},
-        ReturnValues="UPDATED_NEW",
+        ReturnValues="ALL_NEW",
     )
     print(table_response)
 
