@@ -5,7 +5,7 @@ import time
 import requests
 import schedule
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 
 app = FastAPI()
 
@@ -63,11 +63,11 @@ async def say_hello(name: str):
 
 
 @app.get("/service/")
-async def start_service(path: str, server_id: str):
+async def start_service(request: Request, path: str, server_id: str):
     global concierge_uri
     connect_uri = concierge_uri + path
     set_request_path(connect_uri)
-    result = request_handler(path, server_id)
+    result = request_handler(request.method, path, server_id)
     return result
 
 
@@ -76,15 +76,15 @@ async def start_service(path: str, server_id: str):
     methods=["POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     status_code=201,
 )
-async def create_service(path: str, server_id: str):
+async def create_service(request: Request, path: str, server_id: str):
     global concierge_uri
     connect_uri = concierge_uri + path
     set_request_path(connect_uri)
-    result = request_handler(path, server_id)
+    result = request_handler(request.method, path, server_id)
     return result
 
 
-def request():
+def check_request():
     global concierge_check_uri, in_progress, seconds_index
     response = requests.get(
         concierge_check_uri + get_transaction_id(),
@@ -105,7 +105,7 @@ def request():
 
     if seconds_index < len(seconds):
         schedule.clear()
-        schedule.every(seconds[seconds_index]).seconds.do(request)
+        schedule.every(seconds[seconds_index]).seconds.do(check_request)
         print(f"request for concierge timer set : {seconds[seconds_index]}")
         seconds_index += 1
     else:
@@ -115,13 +115,14 @@ def request():
         raise HTTPException(status_code=408, detail="Request timed out")
 
 
-def request_handler(path: str, server_id: str) -> bool:
+def request_handler(method: str, path: str, server_id: str) -> bool:
     logger.debug(
         f"request_handler path: {path}, server_id: {server_id}, concierge_uri: {concierge_uri}"
     )
     global in_progress, response_data
     in_progress = True
-    response = requests.post(
+    response = requests.request(
+        method,
         get_request_path(),
         headers={"Content-Type": "application/json", "x-server-id": server_id},
         json={"original_path": path},
@@ -129,7 +130,7 @@ def request_handler(path: str, server_id: str) -> bool:
     data = response.json()
     set_transaction_id(data["transaction_id"])
 
-    schedule.every(1).seconds.do(request).tag("default")
+    schedule.every(1).seconds.do(check_request).tag("default")
     while True:
         if not in_progress:
             break

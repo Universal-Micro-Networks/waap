@@ -122,7 +122,6 @@ async def create_task(
     background_tasks: BackgroundTasks,
     table: TableResource = Depends(get_table),
 ):
-    logger.debug("create_task")
     headers = dict(request.headers)
     server_id = headers.get("x-server-id")
     server_uri = get_data_source(server_id)
@@ -195,7 +194,9 @@ def _send_api_request(
     if response.text != "":
         _update_task_table(transaction_id, BackendStatusType.FINISHED, response.text)
     elif response.status_code != 200:
-        _update_task_table(transaction_id, BackendStatusType.FAILED, response.text)
+        _update_task_table(
+            transaction_id, BackendStatusType.FAILED, response.status_code
+        )
     else:
         logger.debug("No response from the backend server.")
 
