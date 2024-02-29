@@ -1,11 +1,15 @@
+import json
 import logging
 import os
 import time
+from typing import Any, Dict
 
 import requests
 import schedule
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
+
+from handler.model.item import Item
 
 app = FastAPI()
 
@@ -23,6 +27,7 @@ in_progress = False
 request_path = ""
 transaction_id = ""
 response_data = ""
+
 
 # 環境変数を取得
 concierge_uri: str = os.getenv("CONCIERGE_URI")
@@ -64,6 +69,9 @@ async def say_hello(name: str):
 
 @app.get("/service/")
 async def start_service(request: Request, path: str, server_id: str):
+    if not path or not server_id:
+        raise HTTPException(status_code=422, detail="Path or server_id not provided")
+
     global concierge_uri
     connect_uri = concierge_uri + path
     set_request_path(connect_uri)
@@ -74,9 +82,11 @@ async def start_service(request: Request, path: str, server_id: str):
 @app.api_route(
     "/service/",
     methods=["POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    status_code=201,
 )
-async def create_service(request: Request, path: str, server_id: str):
+async def create_service(request: Request, item: Item):
+    path = item.path
+    server_id = item.server_id
+
     global concierge_uri
     connect_uri = concierge_uri + path
     set_request_path(connect_uri)
@@ -121,12 +131,19 @@ def request_handler(method: str, path: str, server_id: str) -> bool:
     )
     global in_progress, response_data
     in_progress = True
-    response = requests.request(
-        method,
-        get_request_path(),
-        headers={"Content-Type": "application/json", "x-server-id": server_id},
-        json={"original_path": path},
-    )
+    if method == "GET":
+        response = requests.request(
+            method,
+            get_request_path(),
+            headers={"Content-Type": "application/json", "x-server-id": server_id},
+        )
+    else:
+        response = requests.request(
+            method,
+            get_request_path(),
+            headers={"Content-Type": "application/json", "x-server-id": server_id},
+            json={"original_path": path},
+        )
     data = response.json()
     set_transaction_id(data["transaction_id"])
 
