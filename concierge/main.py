@@ -9,10 +9,13 @@ import requests
 import uvicorn
 from boto3.dynamodb.table import TableResource
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
+from middleware.conten_type_validation_middleware import ContentTypeValidationMiddleware
 
 from concierge.model.backend_status_type import BackendStatusType
 
 app = FastAPI()
+app.add_middleware(ContentTypeValidationMiddleware)
 
 # スクリプトのあるディレクトリを取得
 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -22,6 +25,7 @@ logconf_path = os.path.join(dir_path, "../logconf.ini")
 # ログ設定を読み込む
 logging.config.fileConfig(logconf_path)
 logger = logging.getLogger("concierge")
+
 
 # グローバル変数としてDynamoDBリソースを作成
 # DynamoDBサービスに接続
@@ -47,6 +51,14 @@ s3 = boto3.resource(
 )
 # バケット名を指定してバケットを取得
 bucket = s3.Bucket("waap")
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"message": f"An error occurred: {exc.detail}"},
+    )
 
 
 def get_data_source(server_id: str) -> str:
@@ -80,14 +92,15 @@ async def create_task_for_get(
 ):
     headers = dict(request.headers)
     server_id = headers.get("x-server-id")
+
+    if not original_path or not server_id:
+        raise HTTPException(status_code=422, detail="Path or server_id not provided")
+
     server_uri = get_data_source(server_id)
     server_uri = server_uri + original_path
     params = dict(request.query_params)
 
     transaction_id = str(uuid.uuid4())
-    logger.debug(
-        f"****** background_tasks.add_task transaction_id {transaction_id}******"
-    )
 
     background_tasks.add_task(
         _send_api_request,
@@ -122,6 +135,9 @@ async def create_task(
     background_tasks: BackgroundTasks,
     table: TableResource = Depends(get_table),
 ):
+    if not original_path or not request.headers.get("x-server-id"):
+        raise HTTPException(status_code=422, detail="Path or server_id not provided")
+
     headers = dict(request.headers)
     server_id = headers.get("x-server-id")
     server_uri = get_data_source(server_id)
@@ -157,7 +173,9 @@ async def create_task(
 
 @app.get("/check/{transaction_id}")
 async def check_task(transaction_id: str, table: TableResource = Depends(get_table)):
-    logger.debug(f"Checking task with transaction_id {transaction_id}")
+    if transaction_id is None or transaction_id == "":
+        raise HTTPException(status_code=422, detail="Transaction ID not provided")
+
     # TODO: ここでDynamoDBのテーブルを検索して、transaction_idに紐づくレコードがあるか確認する
     response = table.get_item(Key={"transaction_id": transaction_id})
     # アイテムがなければ、404を返す
@@ -184,11 +202,16 @@ def _send_api_request(
     logger.debug(f"Sending request to {url} with transaction_id {transaction_id}")
 
     _update_task_table(transaction_id, BackendStatusType.RUNNING, "")
-    response = requests.request(method, url, headers=headers, data=data, params=params)
-
-    logger.debug(
-        f"ResponseGet {response.text} request to {url} with transaction_id {transaction_id}"
-    )
+    try:
+        response = requests.request(
+            method, url, headers=headers, data=data, params=params
+        )
+    except requests.exceptions.RequestException as e:
+        logger.error(
+            f"Request to {url} with transaction_id {transaction_id} failed: {e}"
+        )
+        _update_task_table(transaction_id, BackendStatusType.FAILED, str(e))
+        return
 
     # TODO: ここでDynamoDBにtransaction_idとレスポンスを保存する
     if response.text != "":

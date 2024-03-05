@@ -88,3 +88,9 @@ def test_start_service_get_error():
         headers={"Content-Type": "application/json"},
     )
     assert response.status_code == 422
+
+
+def test_start_service_timeout():
+    response = client.get("/service/?path=timeout&server_id=server_id2")
+    assert response.status_code == 408
+    assert response.text["detail"] == '"Request Timeout"'
