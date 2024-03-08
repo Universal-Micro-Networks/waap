@@ -1,11 +1,17 @@
 import uuid
 from unittest.mock import MagicMock, patch
 
+import boto3
+import botocore
 import pytest
+from boto3.dynamodb.table import TableResource
+from botocore.exceptions import ClientError
 from concierge.main import _send_api_request, app, get_table
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from model.backend_status_type import BackendStatusType
+from moto import mock_aws
+from moto.dynamodb.exceptions import ResourceNotFoundException
 from requests import RequestException
 
 from .conftest import override_get_table
@@ -104,9 +110,6 @@ def test_send_api_request(client):
     assert True
 
 
-#    app.dependency_overrides[get_table] = {}
-
-
 @patch("concierge.main._send_api_request")
 def test_send_request(mock_send_api_request, client):
     #    app.dependency_overrides[get_table] = override_get_table
@@ -155,7 +158,6 @@ def test_multiple_access(mock_send_api_request, client):
     #    app.dependency_overrides[get_table] = override_get_table
     # テストデータを作成
     original_path = "/test"
-    data = {"original_path": "/test"}
     headers = {"x-server-id": "server_id2"}
 
     mock_send_api_request.return_value = {
@@ -199,6 +201,43 @@ def test_send_request_headers_error(client):
     response = client.get("/task/test", headers={"x-server": "server_id2"})
 
     assert response.status_code == 422
+
+
+def test_send_check_request_uri_error(client):
+    if "x-server" in client.headers:
+        del client.headers["x-server"]
+
+    response_get = client.get("/task/nodata", headers={"x-server-id": "server_id2"})
+    transaction_id = response_get.json()["transaction_id"]
+
+    response_check = client.get(f"/check/{transaction_id}")
+
+    assert response_check.json()["status"] == "FAILED"
+
+
+def test_send_check_request_multi(client):
+    import time
+
+    if "x-server" in client.headers:
+        del client.headers["x-server"]
+    response_first = client.get("/task/test", headers={"x-server-id": "server_id2"})
+    transaction_id_first = response_first.json()["transaction_id"]
+    time.sleep(1)
+    client_second = TestClient(app)
+    response_second = client_second.get(
+        "/task/test2", headers={"x-server-id": "server_id2"}
+    )
+    time.sleep(3)
+    transaction_id_second = response_second.json()["transaction_id"]
+    client_check_first = TestClient(app)
+    response_check_first = client_check_first.get(f"/check/{transaction_id_first}")
+    client_check_second = TestClient(app)
+    response_check_second = client_check_second.get(f"/check/{transaction_id_second}")
+
+    assert response_check_first.json()["status"] == BackendStatusType.RUNNING
+    assert response_check_first.json()["transaction_id"] == transaction_id_first
+    assert response_check_second.json()["status"] == BackendStatusType.FINISHED
+    assert response_check_second.json()["transaction_id"] == transaction_id_second
 
 
 def test_send_request_uri_error(client):
@@ -283,3 +322,81 @@ def test_create_task_exception(client):
     )
     assert response.status_code == 422
 
+
+def test_create_task_post_server_id_exception(client):
+    # RequestExceptionを発生させるようにrequests.requestを設定
+    response = client.post(
+        "/task/test",
+        headers={"x-server-id": "server_id5"},
+        json={"original_path": ""},
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"message": "An error occurred: ServerID not found"}
+
+
+def test_create_task_get_server_id_exception(client):
+    # RequestExceptionを発生させるようにrequests.requestを設定
+    response = client.get("/task/test", headers={"x-server-id": "server_id5"})
+
+    assert response.status_code == 404
+    assert response.json() == {"message": "An error occurred: ServerID not found"}
+
+
+def test_get_table_exists_mock():
+    from concierge.main import get_table
+
+    with patch("concierge.main.dynamodb.Table") as mock_table:
+        mock_table.return_value.table_status = "ACTIVE"
+        table = get_table()
+        mock_table.assert_any_call("tasks")
+        assert table.table_status == "ACTIVE"
+
+
+def test_get_table_not_exists_mock():
+    from concierge.main import get_table
+
+    with patch("concierge.main.dynamodb.Table") as mock_table:
+        mock_table.side_effect = ClientError(
+            error_response={"Error": {"Code": "ResourceNotFoundException"}},
+            operation_name="DescribeTable",
+        )
+        with pytest.raises(ClientError) as e:
+            get_table()
+        mock_table.assert_any_call("tasks")
+        assert e.value.response["Error"]["Code"] == "ResourceNotFoundException"
+
+
+@mock_aws
+def test_get_table_exists_moto():
+    from concierge.main import get_table
+
+    dynamodb = boto3.resource("dynamodb", region_name="ap-northeast-1")
+    dynamodb.create_table(
+        TableName="tasks",
+        KeySchema=[{"AttributeName": "id", "KeyType": "HASH"}],
+        AttributeDefinitions=[{"AttributeName": "id", "AttributeType": "S"}],
+        ProvisionedThroughput={"ReadCapacityUnits": 1, "WriteCapacityUnits": 1},
+    )
+    table = get_table()
+    assert table.table_status == "ACTIVE"
+
+
+@mock_aws
+def test_check_task_item_not_found(client):
+    # テスト用のDynamoDBテーブルを作成
+    dynamodb = boto3.resource("dynamodb", region_name="us-west-2")
+    table = dynamodb.create_table(
+        TableName="tasks",
+        KeySchema=[{"AttributeName": "transaction_id", "KeyType": "HASH"}],
+        AttributeDefinitions=[
+            {"AttributeName": "transaction_id", "AttributeType": "S"}
+        ],
+        ProvisionedThroughput={"ReadCapacityUnits": 1, "WriteCapacityUnits": 1},
+    )
+
+    # 存在しないtransaction_idでcheck_taskを呼び出す
+    response = client.get("/check/nonexistent_id")
+
+    # 404エラーが返されることを確認
+    assert response.status_code == 404

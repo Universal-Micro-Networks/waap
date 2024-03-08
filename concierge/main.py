@@ -5,12 +5,14 @@ import uuid
 from typing import Any, Dict
 
 import boto3
+import botocore
 import requests
 import uvicorn
 from boto3.dynamodb.table import TableResource
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from middleware.conten_type_validation_middleware import ContentTypeValidationMiddleware
+from moto.dynamodb.exceptions import ResourceNotFoundException
 
 from concierge.model.backend_status_type import BackendStatusType
 
@@ -69,7 +71,7 @@ def get_data_source(server_id: str) -> str:
     if server_id in query_json:
         return query_json[server_id]
     else:
-        return "Server ID not found in the JSON file."
+        return ""
 
 
 def get_table() -> TableResource:
@@ -78,8 +80,9 @@ def get_table() -> TableResource:
         table = dynamodb.Table(name)
         status = table.table_status
         print(f'Table "{name}" exists with status "{status}".')
-    except dynamodb.meta.client.exceptions.ResourceNotFoundException:
+    except botocore.exceptions.ClientError as e:
         print(f'Table "{name}" does not exist.')
+
     return dynamodb.Table(name)
 
 
@@ -97,6 +100,8 @@ async def create_task_for_get(
         raise HTTPException(status_code=422, detail="Path or server_id not provided")
 
     server_uri = get_data_source(server_id)
+    if server_uri == "":
+        raise HTTPException(status_code=404, detail="ServerID not found")
     server_uri = server_uri + original_path
     params = dict(request.query_params)
 
@@ -141,14 +146,13 @@ async def create_task(
     headers = dict(request.headers)
     server_id = headers.get("x-server-id")
     server_uri = get_data_source(server_id)
+    if server_uri == "":
+        raise HTTPException(status_code=404, detail="ServerID not found")
     server_uri = server_uri + original_path
     print(server_uri)
     params = dict(request.query_params)
 
     transaction_id = str(uuid.uuid4())
-    logger.debug(
-        f"****** background_tasks.add_task transaction_id {transaction_id}******"
-    )
     background_tasks.add_task(
         _send_api_request,
         request.method,
@@ -173,11 +177,12 @@ async def create_task(
 
 @app.get("/check/{transaction_id}")
 async def check_task(transaction_id: str, table: TableResource = Depends(get_table)):
-    if transaction_id is None or transaction_id == "":
-        raise HTTPException(status_code=422, detail="Transaction ID not provided")
+    # transaction_idがなければ、422を返すという処理は不要
+    # なぜなら、FastAPIが自動的にパスパラメータの型をチェックしエラーの場合は422を返す為
 
     # TODO: ここでDynamoDBのテーブルを検索して、transaction_idに紐づくレコードがあるか確認する
     response = table.get_item(Key={"transaction_id": transaction_id})
+
     # アイテムがなければ、404を返す
     if "Item" not in response:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -220,8 +225,6 @@ def _send_api_request(
         _update_task_table(
             transaction_id, BackendStatusType.FAILED, response.status_code
         )
-    else:
-        logger.debug("No response from the backend server.")
 
 
 def _update_task_table(
