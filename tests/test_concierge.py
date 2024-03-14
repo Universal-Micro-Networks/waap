@@ -1,20 +1,19 @@
+import asyncio
+import os
 import uuid
 from unittest.mock import MagicMock, patch
 
 import boto3
-import botocore
 import pytest
-from boto3.dynamodb.table import TableResource
 from botocore.exceptions import ClientError
-from concierge.main import _send_api_request, app, get_table
+from concierge.main import _send_api_request, app
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from model.backend_status_type import BackendStatusType
 from moto import mock_aws
-from moto.dynamodb.exceptions import ResourceNotFoundException
 from requests import RequestException
 
-from .conftest import override_get_table
+from .conftest import async_client
 
 
 @pytest.fixture
@@ -215,29 +214,33 @@ def test_send_check_request_uri_error(client):
     assert response_check.json()["status"] == "FAILED"
 
 
-def test_send_check_request_multi(client):
-    import time
+# グローバル変数
+task_finished_first = ""
 
-    if "x-server" in client.headers:
-        del client.headers["x-server"]
-    response_first = client.get("/task/test", headers={"x-server-id": "server_id2"})
-    transaction_id_first = response_first.json()["transaction_id"]
-    time.sleep(1)
-    client_second = TestClient(app)
-    response_second = client_second.get(
-        "/task/test2", headers={"x-server-id": "server_id2"}
-    )
-    time.sleep(3)
-    transaction_id_second = response_second.json()["transaction_id"]
-    client_check_first = TestClient(app)
-    response_check_first = client_check_first.get(f"/check/{transaction_id_first}")
-    client_check_second = TestClient(app)
-    response_check_second = client_check_second.get(f"/check/{transaction_id_second}")
 
-    assert response_check_first.json()["status"] == BackendStatusType.RUNNING
-    assert response_check_first.json()["transaction_id"] == transaction_id_first
-    assert response_check_second.json()["status"] == BackendStatusType.FINISHED
-    assert response_check_second.json()["transaction_id"] == transaction_id_second
+@pytest.mark.anyio
+async def test_async_get_multi_request(async_client):
+    global task_finished_first
+
+    async with asyncio.TaskGroup() as tg:
+        task1 = tg.create_task(
+            async_client.get("/task/test", headers={"x-server-id": "server_id2"}),
+            name="task1",
+        )
+        task2 = tg.create_task(
+            async_client.get("/task/test2", headers={"x-server-id": "server_id2"}),
+            name="task2",
+        )
+
+        def on_done(task_name):
+            global task_finished_first
+            if task_finished_first == "":
+                task_finished_first = task_name
+
+        task1.add_done_callback(lambda _: on_done("task1"))
+        task2.add_done_callback(lambda _: on_done("task2"))
+
+    assert task_finished_first == "task2"
 
 
 def test_send_request_uri_error(client):
