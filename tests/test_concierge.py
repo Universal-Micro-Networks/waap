@@ -218,8 +218,8 @@ def test_send_check_request_uri_error(client):
 task_finished_first = ""
 
 
-@pytest.mark.anyio
-async def test_async_get_multi_request(async_client):
+@pytest.mark.asyncio
+async def test_async_get_multiple_request(async_client):
     global task_finished_first
 
     async with asyncio.TaskGroup() as tg:
