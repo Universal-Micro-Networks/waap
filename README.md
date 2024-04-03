@@ -10,21 +10,15 @@ WAAPはこの問題を解決するために開発されました。
 クラウドインフラのタイムアウト要件に合わないレガシーWebアプリケーションを、前段に配置されるAPI Gatewayをラッピングする形でタイムアウトを回避します。
 
 ## 構成
+WAAPは二つのプロセス（ConciergeとHandler＆BackgroundTask）と一つのDBによって構成されます。
 
-```mermaid
-zenuml
-    title WAAP
-    @Boundary Concierge
-    @Control Handler
-    @Control BackgroundTask
-    @Database DB
-    Concierge -> Handler : TOSS REQUEST
-    Handler -> BackgroundTask : TOSS REQUEST
-    BackgroundTask -> DB : CREATE STATUS
-    BackgroundTask -> DB : UPDATE STATUS
-    Concierge -> DB : CHECK STATUS
-    
-```
+|No.|Sub No.|Name|Role|
+|---:|---:|---|---|
+|1.|-|Concierge|Receives an API request from UI and toss it to API Gateway|
+|2.|1.|Handler|Receives an API request from the API Gateway and spaun background tasks|
+|2.|2.|Background Task|manages slow requests/responses with a legacy web application|
+|3.|-|DB|record request statuses of the requests to the legacy web applications|
+
 ### 正常系シーケンス図
 ```mermaid
 sequenceDiagram
@@ -53,7 +47,7 @@ sequenceDiagram
         else Web Appからのレスポンスあり
             WA -->>- WAAPB: Response 200/4xx/5xx
             WAAPB ->> WAAPD: UPDATE
-    
+
             WAAPC ->> WAAPD : GET with Req ID (W/T Update)
             WAAPC -->>- UI : Response 200/4xx/5xx
         end
@@ -75,7 +69,7 @@ sequenceDiagram
 ## テスト方法
 Docker Compose起動後
 ```Shell
-# pytest 
+# pytest
 ```
 
 ## その他Tips
