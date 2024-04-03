@@ -5,11 +5,13 @@
 
 version: 2
 updates:
-  - package-ecosystem: "pip"
+  - package-ecosystem: "Poetry"
     directory: "/"
     schedule:
       interval: "weekly"
+    target-branch: "develop"
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "weekly"
+    target-branch: "develop"
