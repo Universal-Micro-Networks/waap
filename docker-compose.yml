@@ -1,0 +1,91 @@
+version: "3.8"
+
+services:
+  handler:
+    build:
+      context: ./
+      dockerfile: handler/Dockerfile
+    container_name: handler
+    hostname: handler
+    env_file:
+      - config/handler.env
+    volumes:
+      - handler-store:/handler
+    ports:
+      - "8008:8008"
+
+  concierge:
+    build:
+      context: ./
+      dockerfile: concierge/Dockerfile
+    container_name: concierge
+    hostname: concierge
+    env_file:
+      - config/concierge.env
+    volumes:
+      - concierge-store:/concierge
+    ports:
+      - "8088:8088"
+
+  dynamodb-local:
+    image: amazon/dynamodb-local
+    container_name: dynamodb-local
+    hostname: dynamodb-local
+    ports:
+      - "8000:8000"
+    volumes:
+      - db-store:/home/dynamodblocal/data  # Mount the local directory to the container
+    working_dir: /home/dynamodblocal
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath ."
+  dynamodb-admin:
+    image: aaronshaf/dynamodb-admin
+    container_name: dynamodb-admin
+    hostname: dynamodb-admin
+    ports:
+      - "8001:8001"
+    environment:
+      DYNAMO_ENDPOINT: http://dynamodb-local:8000
+
+  minio:
+    image: minio/minio:latest
+    ports:
+      - ${MINIO_PORT:-9000}:9000
+      - ${MINIO_CONSOLE_PORT:-9001}:9001
+    volumes:
+      - ./.data/minio/data:/export
+      - ./.data/minio/config:/root/.minio
+    env_file:
+      - .env
+    environment:
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minio}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minio123}
+    command: server /export --console-address ":9001"
+  createbuckets:
+    image: minio/mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until (/usr/bin/mc config host add myminio http://minio:9000 ${MINIO_ACCESS_KEY:-minio} ${MINIO_SECRET_KEY:-minio123}) do echo '...waiting...' && sleep 1; done;
+      /usr/bin/mc mb myminio/${MINIO_BUCKET_NAME:-mybucket};
+      /usr/bin/mc policy download myminio/${MINIO_BUCKET_NAME:-mybucket};
+      exit 0;
+      "
+
+  mmock:
+    image: jordimartin/mmock:latest
+    restart: 'always'
+    volumes:
+      - ./mmock:/config
+    ports:
+      - '8082:8082'
+      - '8083:8083'
+
+
+volumes:
+     db-store:
+       driver: local
+     handler-store:
+       driver: local
+     concierge-store:
+       driver: local
