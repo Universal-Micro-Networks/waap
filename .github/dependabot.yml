@@ -5,7 +5,7 @@
 
 version: 2
 updates:
-  - package-ecosystem: "Poetry"
+  - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
