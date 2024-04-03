@@ -1,0 +1,52 @@
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+
+name: Dependabot auto-merge
+
+on: pull_request
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    if: ${{ github.actor == 'dependabot[bot]' || github.event.action == 'synchronize' && startsWith( github.head_ref, 'dependabot' ) }}
+    steps:
+        - uses: actions/checkout@v4
+        - name: Set up Python
+          # This is the version of the action for setting up Python, not the Python version.
+          uses: actions/setup-python@v4
+          with:
+            # Semantic version range syntax or exact version of a Python version
+            python-version: '3.12.2'
+            # Optional - x64 or x86 architecture, defaults to x64
+            architecture: 'x64'
+        # You can test your matrix by printing the current Python version
+        - name: Display Python version
+          run: python -c "import sys; print(sys.version)"
+  dependabot:
+    runs-on: ubuntu-latest
+    permissions: write-all
+    needs: build
+    if: ${{ github.actor == 'dependabot[bot]' || github.event.action == 'synchronize'  && startsWith( github.head_ref, 'dependabot' ) }}
+    steps:
+      - name: Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v1
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+      - name: Approve and enable auto-merge for Dependabot PRs
+        if: |
+          ${{ ( steps.metadata.outputs.package-ecosystem == 'hex' && steps.metadata.outputs.update-type == 'version-update:semver-patch' ) || steps.metadata.outputs.package-ecosystem == 'github-actions' }}
+        run: |
+          gh pr review --approve "$PR_URL"
+          gh pr edit "$PR_URL" -t "(auto merged) $PR_TITLE"
+          gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
