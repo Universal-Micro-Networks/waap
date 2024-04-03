@@ -1,0 +1,43 @@
+{
+  "URI": "delay15s_get.json",
+  "description": "Test for mock!",
+  "request": {
+    "scheme": "",
+    "host": "",
+    "port": "",
+    "method": "GET",
+    "path": "/test",
+    "queryStringParameters": null,
+    "fragment": "",
+    "headers": null,
+    "cookies": null,
+    "body": ""
+  },
+  "response": {
+    "statusCode": 200,
+    "headers": null,
+    "cookies": null,
+    "body": "Hello, mock!"
+  },
+  "callback": {
+    "delay": "25s",
+    "method": "",
+    "url": "",
+    "headers": null,
+    "cookies": null,
+    "body": "Test Mock Data ",
+    "timeout": "0s"
+  },
+  "control": {
+    "priority": 0,
+    "delay": "25s",
+    "crazy": false,
+    "scenario": {
+      "name": "",
+      "requiredState": null,
+      "newState": ""
+    },
+    "proxyBaseURL": "",
+    "webHookURL": ""
+  }
+}
