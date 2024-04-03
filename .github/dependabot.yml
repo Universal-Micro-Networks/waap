@@ -11,7 +11,14 @@ updates:
       interval: "weekly"
     target-branch: "develop"
   - package-ecosystem: "docker"
-    directory: "/"
+    # Files stored in `concierge` directory
+    directory: "/concierge"
+    schedule:
+      interval: "weekly"
+    target-branch: "develop"
+  - package-ecosystem: "docker"
+    # Files stored in `handler` directory
+    directory: "/handler"
     schedule:
       interval: "weekly"
     target-branch: "develop"

@@ -3,7 +3,7 @@ version: "3.8"
 services:
   handler:
     build:
-      context: ./
+      context: waap
       dockerfile: handler/Dockerfile
     container_name: handler
     hostname: handler
@@ -16,7 +16,7 @@ services:
 
   concierge:
     build:
-      context: ./
+      context: waap
       dockerfile: concierge/Dockerfile
     container_name: concierge
     hostname: concierge
