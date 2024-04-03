@@ -18,6 +18,14 @@ WAAPは二つのプロセス（ConciergeとHandler＆BackgroundTask）と一つ�
 |2.|1.|Handler|Receives an API request from the API Gateway and spaun background tasks|
 |2.|2.|Background Task|manages slow requests/responses with a legacy web application|
 |3.|-|DB|record request statuses of the requests to the legacy web applications|
+### Concierge & Handler
+
+Fast API Application
+
+### DB
+
+Key Value Database
+Now we assume it should be DynamoDB and we will add more DBs in the future.
 
 ### 正常系シーケンス図
 ```mermaid
