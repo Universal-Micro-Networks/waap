@@ -70,6 +70,25 @@ sequenceDiagram
 # gh repo clone Universal-Micro-Networks/waap
 ```
 ### Run
+
+.env ファイルを以下の環境変数例と[環境変数の一覧](#環境変数の一覧)を元に作成
+
+### 環境変数の一覧
+
+| 変数名                  | 説明                 |               |
+|----------------------|--------------------|---------------|
+| CONCIERGE_URI        | ConciergeのURI      | Handler内で利用   |
+| CONCIERGE_CHECK_URI  | ConciergeのCheckURI | Handler内で利用   |
+| MINIO_URI            | MinioのURI          | Concierge内で利用 |
+| MINIO_ACCESS_KEY     | Minioのアクセスキー       | Concierge内で利用 |
+| MINIO_SECRET_KEY     | Minioのシークレットキー     | Concierge内で利用 |
+| MINIO_BUCKET_NAME    | Minioのバケット名        | Concierge内で利用 |
+| MINIO_PORT           | Minioのポート番号        | Concierge内で利用 |
+| DYNAMODB_URI        | DynamoDBのURI       | Concierge内で利用 |
+| DYNAMODB_URI_TEST    | テスト用DynamoDBのURI   | conftest内で利用  |
+
+.env ファイルを作成後、以下のコマンドで開発環境を構築
+
 ```Shell
 # docker-compose up
 ```
@@ -88,3 +107,5 @@ Bump upは、プラグインを入れると以下コマンドで一括アップ�
 # poetry up --latest
 ```
 https://github.com/MousaZeidBaker/poetry-plugin-up
+
+

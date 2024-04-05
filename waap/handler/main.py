@@ -9,14 +9,14 @@ import schedule
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 
-from handler.model.item import Item
+from model.item import Item
 
 app = FastAPI()
 
 # スクリプトのあるディレクトリを取得
 dir_path = os.path.dirname(os.path.realpath(__file__))
 # logconf.iniの絶対パスを作成
-logconf_path = os.path.join(dir_path, "../logconf.ini")
+logconf_path = os.path.join(dir_path, "../../logconf.ini")
 
 # ログ設定を読み込む
 logging.config.fileConfig(logconf_path)
