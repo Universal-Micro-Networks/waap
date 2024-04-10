@@ -11,10 +11,12 @@ import uvicorn
 from boto3.dynamodb.table import TableResource
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
-from middleware.conten_type_validation_middleware import ContentTypeValidationMiddleware
 from moto.dynamodb.exceptions import ResourceNotFoundException
+from waap.middleware.conten_type_validation_middleware import (
+    ContentTypeValidationMiddleware,
+)
 
-from concierge.model.backend_status_type import BackendStatusType
+from model.backend_status_type import BackendStatusType
 
 app = FastAPI()
 app.add_middleware(ContentTypeValidationMiddleware)
@@ -22,7 +24,7 @@ app.add_middleware(ContentTypeValidationMiddleware)
 # スクリプトのあるディレクトリを取得
 dir_path = os.path.dirname(os.path.realpath(__file__))
 # logconf.iniの絶対パスを作成
-logconf_path = os.path.join(dir_path, "../logconf.ini")
+logconf_path = os.path.join(dir_path, "../../logconf.ini")
 
 # ログ設定を読み込む
 logging.config.fileConfig(logconf_path)
@@ -52,6 +54,7 @@ s3 = boto3.resource(
     region_name="ap-northeast-1",
 )
 # バケット名を指定してバケットを取得
+bucket_name = os.getenv("MINIO_BUCKET_NAME")
 bucket = s3.Bucket("waap")
 
 

@@ -3,7 +3,7 @@ import os
 import boto3
 import pytest
 import pytest_asyncio
-from concierge.main import app
+from waap.concierge.main import app
 from httpx import AsyncClient
 
 dynamodb_uri = os.getenv("DYNAMODB_URI_TEST")
