@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
-from handler.main import app
+from waap.handler.main import app
 
 client = TestClient(app)
 
@@ -21,7 +21,7 @@ def test_say_hello():
     assert response.json() == {"message": "Hello test"}
 
 
-@patch("handler.main.request_handler")
+@patch("waap.handler.main.request_handler")
 def test_start_service_mock(mock_request_handler):
     mock_request_handler.return_value = "test"
     response = client.get("/service/?path=test&server_id=test")
@@ -29,7 +29,7 @@ def test_start_service_mock(mock_request_handler):
     assert response.text == '"test"'
 
 
-@patch("handler.main.request_handler")
+@patch("waap.handler.main.request_handler")
 def test_create_service_mock(mock_request_handler):
     mock_request_handler.return_value = "test"
     response = client.post("/service/", json={"path": "test", "server_id": "test"})

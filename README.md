@@ -75,26 +75,45 @@ sequenceDiagram
 
 ### 環境変数の一覧
 
-| 変数名                  | 説明                 |               |
-|----------------------|--------------------|---------------|
-| CONCIERGE_URI        | ConciergeのURI      | Handler内で利用   |
-| CONCIERGE_CHECK_URI  | ConciergeのCheckURI | Handler内で利用   |
-| MINIO_URI            | MinioのURI          | Concierge内で利用 |
-| MINIO_ACCESS_KEY     | Minioのアクセスキー       | Concierge内で利用 |
-| MINIO_SECRET_KEY     | Minioのシークレットキー     | Concierge内で利用 |
-| MINIO_BUCKET_NAME    | Minioのバケット名        | Concierge内で利用 |
-| MINIO_PORT           | Minioのポート番号        | Concierge内で利用 |
-| DYNAMODB_URI        | DynamoDBのURI       | Concierge内で利用 |
-| DYNAMODB_URI_TEST    | テスト用DynamoDBのURI   | conftest内で利用  |
+| 変数名                 | 説明                             |               |
+|---------------------|--------------------------------|---------------|
+| CONCIERGE_URI       | Conciergeのバックグラウンドタスク起動エンドポイント | Handler内で利用   |
+| CONCIERGE_CHECK_URI | ConciergeのCheck用エンドポイント        | Handler内で利用   |
+| MINIO_URI           | MinioのURI                      | Concierge内で利用 |
+| MINIO_ROOT_USER     | Minioルートユーザー                   | Concierge内で利用 |
+| MINIO_ROOT_PASSWORD | Minioルートパスワード                  | Concierge内で利用 |
+| BUCKET_NAME         | Minioのバケット名                    | Concierge内で利用 |
+| BUCKET_FILE_NAME    | Minioのバケットファイル名                | Concierge内で利用 |
+| MINIO_PORT          | Minioのポート番号                    | Concierge内で利用 |
+| DYNAMODB_URI        | DynamoDBのURI                   | Concierge内で利用 |
+| DYNAMODB_URI_TEST   | テスト用DynamoDBのURI               | conftest内で利用  |
 
-.env ファイルを作成後、以下のコマンドで開発環境を構築
+.env ファイルを作成
+
+### Webアプリケーションエンドポイント情報の設定ファイル
+CONCIERGEがアクセスするWebアプリケーションのエンドポイント情報をJSONファイルに記述し
+Minioにアップロードする。そのファイル名を.envファイルのBUCKET_FILE_NAMEに記述
+Handlerにアクセスする際のserver_idはこのJSONファイルに記述されたserver_idを指定する<br>
+
+例
+```json
+{
+    "server_id1": "http://localhost:8008/service/",
+    "server_id2": "http://localhost:8008/service/"
+}
+```
+
+
+```Shell
+以下のコマンドで開発環境を構築
 
 ```Shell
 # docker-compose up
 ```
 
 ## テスト方法
-Docker Compose起動後
+Docker Compose起動</br>
+pytest.iniファイルの値を適宜設定
 ```Shell
 # pytest
 ```
