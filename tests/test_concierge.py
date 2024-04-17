@@ -6,12 +6,12 @@ from unittest.mock import MagicMock, patch
 import boto3
 import pytest
 from botocore.exceptions import ClientError
-from concierge.main import _send_api_request, app
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from model.backend_status_type import BackendStatusType
 from moto import mock_aws
 from requests import RequestException
+from waap.concierge.main import _send_api_request, app
+from waap.concierge.model.backend_status_type import BackendStatusType
 
 from .conftest import async_client
 
@@ -22,7 +22,7 @@ def client():
 
 
 def test_get_data_source():
-    from concierge.main import get_data_source
+    from waap.concierge.main import get_data_source
 
     server_id = "server_id1"
     result = get_data_source(server_id)
@@ -30,7 +30,7 @@ def test_get_data_source():
 
 
 def test_get_table():
-    from concierge.main import get_table
+    from waap.concierge.main import get_table
 
     result = get_table()
     assert result is not None
@@ -71,7 +71,7 @@ def test_check_task(client):
     assert response.json()["transaction_id"] == transaction_id
 
 
-@patch("concierge.main._send_api_request")
+@patch("waap.concierge.main._send_api_request")
 def test_create_task_for_post_mock(mock_send_api_request, client):
     # ヘッダーを設定
     client.headers.update({"x-server-id": "server_id2"})
@@ -98,7 +98,7 @@ def test_send_api_request(client):
     transaction_id = "test_id"
 
     # テストの実行
-    from concierge.main import _send_api_request
+    from waap.concierge.main import _send_api_request
 
     _send_api_request(method, url, headers, data, params, transaction_id)
 
@@ -109,7 +109,7 @@ def test_send_api_request(client):
     assert True
 
 
-@patch("concierge.main._send_api_request")
+@patch("waap.concierge.main._send_api_request")
 def test_send_request(mock_send_api_request, client):
     #    app.dependency_overrides[get_table] = override_get_table
     # テストデータを作成
@@ -152,7 +152,7 @@ def test_send_request(mock_send_api_request, client):
 #    app.dependency_overrides[get_table] = {}
 
 
-@patch("concierge.main._send_api_request")
+@patch("waap.concierge.main._send_api_request")
 def test_multiple_access(mock_send_api_request, client):
     #    app.dependency_overrides[get_table] = override_get_table
     # テストデータを作成
@@ -269,9 +269,9 @@ def test_send_request_json_error(client):
     assert str(e.value) == "400: Invalid Content-Type"
 
 
-@patch("concierge.main.get_table")
+@patch("waap.concierge.main.get_table")
 def test_update_task_table(mock_get_table, client):
-    from concierge.main import _update_task_table
+    from waap.concierge.main import _update_task_table
 
     # モックテーブルを作成し、update_itemメソッドをモック化
     mock_table = MagicMock()
@@ -301,8 +301,8 @@ def test_update_task_table(mock_get_table, client):
     )
 
 
-@patch("concierge.main.requests.request")
-@patch("concierge.main._update_task_table")
+@patch("waap.concierge.main.requests.request")
+@patch("waap.concierge.main._update_task_table")
 def test_send_api_request_exception(mock_update_task_table, mock_request, mocker):
     # RequestExceptionを発生させるようにrequests.requestを設定
     mock_request.side_effect = RequestException()
@@ -347,9 +347,9 @@ def test_create_task_get_server_id_exception(client):
 
 
 def test_get_table_exists_mock():
-    from concierge.main import get_table
+    from waap.concierge.main import get_table
 
-    with patch("concierge.main.dynamodb.Table") as mock_table:
+    with patch("waap.concierge.main.dynamodb.Table") as mock_table:
         mock_table.return_value.table_status = "ACTIVE"
         table = get_table()
         mock_table.assert_any_call("tasks")
@@ -357,9 +357,9 @@ def test_get_table_exists_mock():
 
 
 def test_get_table_not_exists_mock():
-    from concierge.main import get_table
+    from waap.concierge.main import get_table
 
-    with patch("concierge.main.dynamodb.Table") as mock_table:
+    with patch("waap.concierge.main.dynamodb.Table") as mock_table:
         mock_table.side_effect = ClientError(
             error_response={"Error": {"Code": "ResourceNotFoundException"}},
             operation_name="DescribeTable",
@@ -372,7 +372,7 @@ def test_get_table_not_exists_mock():
 
 @mock_aws
 def test_get_table_exists_moto():
-    from concierge.main import get_table
+    from waap.concierge.main import get_table
 
     dynamodb = boto3.resource("dynamodb", region_name="ap-northeast-1")
     dynamodb.create_table(
