@@ -11,10 +11,11 @@ import uvicorn
 from boto3.dynamodb.table import TableResource
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
-from waap.concierge.model.backend_status_type import BackendStatusType
 from waap.middleware.conten_type_validation_middleware import (
     ContentTypeValidationMiddleware,
 )
+
+from .model.backend_status_type import BackendStatusType
 
 app = FastAPI()
 app.add_middleware(ContentTypeValidationMiddleware)
@@ -26,7 +27,7 @@ logconf_path = os.path.join(dir_path, "logconf.ini")
 
 # ログ設定を読み込む
 logging.config.fileConfig(logconf_path)
-logger = logging.getLogger("concierge")
+logger = logging.getLogger("worker")
 
 
 # グローバル変数としてDynamoDBリソースを作成
@@ -37,9 +38,9 @@ dynamodb = boto3.resource("dynamodb", endpoint_url=dynamodb_uri)
 # S3にアクセスするためのクライアント
 s3 = boto3.resource(
     "s3",
-    endpoint_url=os.getenv("MINIO_URI"),
-    aws_access_key_id=os.getenv("MINIO_ROOT_USER"),
-    aws_secret_access_key=os.getenv("MINIO_ROOT_PASSWORD"),
+    endpoint_url=os.getenv("MINIO_URI"),  # MinIOサーバーのエンドポイントURL
+    aws_access_key_id=os.getenv("MINIO_ROOT_USER"),  # MinIOのアクセスキー
+    aws_secret_access_key=os.getenv("MINIO_ROOT_PASSWORD"),  # MinIOのシークレットキー
     region_name="ap-northeast-1",
 )
 # バケット名を指定してバケットを取得
@@ -94,7 +95,7 @@ async def create_task_for_get(
     server_uri = get_data_source(server_id)
     if server_uri == "":
         raise HTTPException(status_code=404, detail="ServerID not found")
-    server_uri = server_uri + original_path
+    server_uri = str(server_uri) + original_path
     params = dict(request.query_params)
 
     transaction_id = str(uuid.uuid4())
@@ -140,7 +141,7 @@ async def create_task(
     server_uri = get_data_source(server_id)
     if server_uri == "":
         raise HTTPException(status_code=404, detail="ServerID not found")
-    server_uri = server_uri + original_path
+    server_uri = str(server_uri) + str(original_path)
 
     params = dict(request.query_params)
 

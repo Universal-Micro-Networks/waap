@@ -8,7 +8,8 @@ import requests
 import schedule
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
-from waap.handler.model.item import Item
+
+from .model.item import Item
 
 app = FastAPI()
 
@@ -29,8 +30,8 @@ response_data = ""
 
 
 # 環境変数を取得
-concierge_uri: str = os.getenv("CONCIERGE_URI")
-concierge_check_uri: str = os.getenv("CONCIERGE_CHECK_URI")
+worker_uri: str = os.getenv("WORKER_URI")
+worker_check_uri: str = os.getenv("WORKER_CHECK_URI")
 
 
 def set_request_path(path: str):
@@ -71,8 +72,8 @@ async def start_service(request: Request, path: str, server_id: str):
     if not path or not server_id:
         raise HTTPException(status_code=422, detail="Path or server_id not provided")
 
-    global concierge_uri
-    connect_uri = concierge_uri + path
+    global worker_uri
+    connect_uri = str(worker_uri) + path
     set_request_path(connect_uri)
     result = request_handler(request.method, path, server_id)
     return result
@@ -86,17 +87,17 @@ async def create_service(request: Request, item: Item):
     path = item.path
     server_id = item.server_id
 
-    global concierge_uri
-    connect_uri = concierge_uri + path
+    global worker_uri
+    connect_uri = worker_uri + path
     set_request_path(connect_uri)
     result = request_handler(request.method, path, server_id)
     return result
 
 
 def check_request():
-    global concierge_check_uri, in_progress, seconds_index
+    global worker_check_uri, in_progress, seconds_index
     response = requests.get(
-        concierge_check_uri + get_transaction_id(),
+        worker_check_uri + get_transaction_id(),
         headers={"Content-Type": "application/json"},
     )
     data = response.json()
@@ -126,7 +127,7 @@ def check_request():
 
 def request_handler(method: str, path: str, server_id: str) -> bool:
     logger.debug(
-        f"request_handler path: {path}, server_id: {server_id}, concierge_uri: {concierge_uri}"
+        f"request_handler path: {path}, server_id: {server_id}, worker_uri: {worker_uri}"
     )
     global in_progress, response_data
     in_progress = True

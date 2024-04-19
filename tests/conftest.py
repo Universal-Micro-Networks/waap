@@ -4,7 +4,7 @@ import boto3
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
-from waap.concierge.main import app
+from waap.worker.main import app
 
 dynamodb_uri = os.getenv("DYNAMODB_URI")
 dynamodb = boto3.resource("dynamodb", endpoint_url=dynamodb_uri)
