@@ -1,12 +1,12 @@
 {
   "URI": "delay5s_get.json",
-  "description": "Test for mock delay5s!",
+  "description": "Test for GET delay5s mmock",
   "request": {
     "scheme": "",
     "host": "",
     "port": "",
     "method": "GET",
-    "path": "/test2",
+    "path": "/delay5s",
     "queryStringParameters": null,
     "fragment": "",
     "headers": null,
@@ -17,7 +17,7 @@
     "statusCode": 200,
     "headers": null,
     "cookies": null,
-    "body": "Hello, mock delay5s !"
+    "body": "Hello, GET delay5s mock!"
   },
   "callback": {
     "delay": "5s",
@@ -25,7 +25,7 @@
     "url": "",
     "headers": null,
     "cookies": null,
-    "body": "Test Mock Data 2",
+    "body": "Hello, GET delay5s mock!",
     "timeout": "0s"
   },
   "control": {

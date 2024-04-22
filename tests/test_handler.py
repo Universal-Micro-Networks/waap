@@ -24,7 +24,7 @@ def test_say_hello():
 @patch("waap.handler.main.request_handler")
 def test_start_service_mock(mock_request_handler):
     mock_request_handler.return_value = "test"
-    response = client.get("/service/?path=test&server_id=test")
+    response = client.get("/service/?path=get_delay15s&server_id=test")
     assert response.status_code == 200
     assert response.text == '"test"'
 
@@ -38,21 +38,21 @@ def test_create_service_mock(mock_request_handler):
 
 
 def test_start_service_get():
-    response = client.get("/service/?path=test&server_id=server_id2")
+    response = client.get("/service/?path=delay15s&server_id=server_id4")
 
     assert response.status_code == 200
-    assert response.text == '"Hello, mock!"'
+    assert response.text == '"Hello, GET delay15s mock!"'
 
 
 def test_start_service_post():
     response = client.post(
         "/service/",
         headers={"Content-Type": "application/json"},
-        json={"path": "test", "server_id": "server_id2"},
+        json={"path": "delay5s", "server_id": "server_id4"},
     )
 
     assert response.status_code == 200
-    assert response.text == '"Hello, POST mock!"'
+    assert response.text == '"Hello, POST delay5s mock!"'
 
 
 def test_start_service_post_error():
@@ -91,6 +91,6 @@ def test_start_service_get_error():
 
 
 def test_start_service_timeout():
-    response = client.get("/service/?path=timeout&server_id=server_id2")
+    response = client.get("/service/?path=delay8m35s&server_id=server_id4")
     assert response.status_code == 408
-    assert response.text["detail"] == '"Request Timeout"'
+    assert response.text == '{"detail":"Request timed out"}'
