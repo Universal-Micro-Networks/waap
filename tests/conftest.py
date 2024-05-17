@@ -3,21 +3,11 @@ import os
 import boto3
 import pytest
 import pytest_asyncio
-from concierge.main import app
 from httpx import AsyncClient
+from waap.worker.main import app
 
-dynamodb_uri = os.getenv("DYNAMODB_URI_TEST")
-
-session = boto3.session.Session(
-    aws_access_key_id="DUMMY_ACCESS_KEY",
-    aws_secret_access_key="DUMMY_SECRET_KEY",
-    region_name="ap-northeast-1",
-)
-
+dynamodb_uri = os.getenv("DYNAMODB_URI")
 dynamodb = boto3.resource("dynamodb", endpoint_url=dynamodb_uri)
-
-# def override_get_bucket():
-#    return bucket
 
 
 def override_get_table():

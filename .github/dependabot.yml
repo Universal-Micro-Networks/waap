@@ -12,13 +12,13 @@ updates:
     target-branch: "develop"
   - package-ecosystem: "docker"
     # Files stored in `concierge` directory
-    directory: "/concierge"
+    directory: "/waap/concierge"
     schedule:
       interval: "weekly"
     target-branch: "develop"
   - package-ecosystem: "docker"
     # Files stored in `handler` directory
-    directory: "/handler"
+    directory: "/waap/handler"
     schedule:
       interval: "weekly"
     target-branch: "develop"

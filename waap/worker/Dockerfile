@@ -1,4 +1,4 @@
-FROM python:3.12.0-slim-bullseye
+FROM python:3.12.2-slim-bullseye
 
 RUN apt update && apt install -y curl vim
 
@@ -12,8 +12,10 @@ WORKDIR /app
 
 COPY pyproject.toml poetry.lock /app/
 
-RUN poetry install --no-root
+RUN poetry install
 
-COPY ./concierge /app
+COPY waap/worker /app/waap/worker
+COPY waap/middleware /app/waap/middleware
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8088"]
+
+CMD ["uvicorn", "waap.worker.main:app", "--host", "0.0.0.0", "--port", "8088"]

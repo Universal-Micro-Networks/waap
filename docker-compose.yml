@@ -3,8 +3,8 @@ version: "3.8"
 services:
   handler:
     build:
-      context: waap
-      dockerfile: handler/Dockerfile
+      context: ./
+      dockerfile: waap/handler/Dockerfile
     container_name: handler
     hostname: handler
     env_file:
@@ -14,16 +14,16 @@ services:
     ports:
       - "8008:8008"
 
-  concierge:
+  worker:
     build:
-      context: waap
-      dockerfile: concierge/Dockerfile
-    container_name: concierge
-    hostname: concierge
+      context: ./
+      dockerfile: waap/worker/Dockerfile
+    container_name: worker
+    hostname: worker
     env_file:
-      - config/concierge.env
+      - config/worker.env
     volumes:
-      - concierge-store:/concierge
+      - worker-store:/worker
     ports:
       - "8088:8088"
 
@@ -76,16 +76,22 @@ services:
     image: jordimartin/mmock:latest
     restart: 'always'
     volumes:
-      - ./mmock:/config
+      - ./config/mmock:/config
     ports:
       - '8082:8082'
       - '8083:8083'
 
+  zap:
+    image: zaproxy/zap-stable
+    container_name: zap
+    volumes:
+      - ./zap:/zap/wrk/
+    tty: true
 
 volumes:
      db-store:
        driver: local
      handler-store:
        driver: local
-     concierge-store:
+     worker-store:
        driver: local

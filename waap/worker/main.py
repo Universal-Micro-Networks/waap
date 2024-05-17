@@ -11,10 +11,11 @@ import uvicorn
 from boto3.dynamodb.table import TableResource
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
-from middleware.conten_type_validation_middleware import ContentTypeValidationMiddleware
-from moto.dynamodb.exceptions import ResourceNotFoundException
+from waap.middleware.conten_type_validation_middleware import (
+    ContentTypeValidationMiddleware,
+)
 
-from concierge.model.backend_status_type import BackendStatusType
+from .model.backend_status_type import BackendStatusType
 
 app = FastAPI()
 app.add_middleware(ContentTypeValidationMiddleware)
@@ -22,24 +23,15 @@ app.add_middleware(ContentTypeValidationMiddleware)
 # スクリプトのあるディレクトリを取得
 dir_path = os.path.dirname(os.path.realpath(__file__))
 # logconf.iniの絶対パスを作成
-logconf_path = os.path.join(dir_path, "../logconf.ini")
+logconf_path = os.path.join(dir_path, "logconf.ini")
 
 # ログ設定を読み込む
 logging.config.fileConfig(logconf_path)
-logger = logging.getLogger("concierge")
+logger = logging.getLogger("worker")
 
 
 # グローバル変数としてDynamoDBリソースを作成
 # DynamoDBサービスに接続
-#    dynamodb = boto3.resource("dynamodb")
-# ローカルのDynamoDBに接続
-# boto3.setup_default_session(region_name="ap-northeast-1")
-# ダミーの認証情報を設定
-session = boto3.session.Session(
-    aws_access_key_id="DUMMY_ACCESS_KEY",
-    aws_secret_access_key="DUMMY_SECRET_KEY",
-    region_name="ap-northeast-1",
-)
 dynamodb_uri = os.getenv("DYNAMODB_URI")
 dynamodb = boto3.resource("dynamodb", endpoint_url=dynamodb_uri)
 
@@ -47,12 +39,14 @@ dynamodb = boto3.resource("dynamodb", endpoint_url=dynamodb_uri)
 s3 = boto3.resource(
     "s3",
     endpoint_url=os.getenv("MINIO_URI"),  # MinIOサーバーのエンドポイントURL
-    aws_access_key_id=os.getenv("MINIO_ACCESS_KEY"),  # MinIOのアクセスキー
-    aws_secret_access_key=os.getenv("MINIO_SECRET_KEY"),  # MinIOのシークレットキー
+    aws_access_key_id=os.getenv("MINIO_ROOT_USER"),  # MinIOのアクセスキー
+    aws_secret_access_key=os.getenv("MINIO_ROOT_PASSWORD"),  # MinIOのシークレットキー
     region_name="ap-northeast-1",
 )
 # バケット名を指定してバケットを取得
-bucket = s3.Bucket("waap")
+bucket_name = os.getenv("BUCKET_NAME")
+bucket_file_name = os.getenv("BUCKET_FILE_NAME")
+bucket = s3.Bucket(f"{bucket_name}")
 
 
 @app.exception_handler(HTTPException)
@@ -64,7 +58,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 
 def get_data_source(server_id: str) -> str:
-    obj = s3.Object("waap", "servers.json")
+    obj = s3.Object(f"{bucket_name}", f"{bucket_file_name}")
     body = obj.get()["Body"].read()
     decoded_body = body.decode("utf-8")
     query_json = json.loads(decoded_body)
@@ -79,9 +73,8 @@ def get_table() -> TableResource:
     try:
         table = dynamodb.Table(name)
         status = table.table_status
-        print(f'Table "{name}" exists with status "{status}".')
     except botocore.exceptions.ClientError as e:
-        print(f'Table "{name}" does not exist.')
+        logger.error(f'Table "{name}" does not exist.')
 
     return dynamodb.Table(name)
 
@@ -102,7 +95,7 @@ async def create_task_for_get(
     server_uri = get_data_source(server_id)
     if server_uri == "":
         raise HTTPException(status_code=404, detail="ServerID not found")
-    server_uri = server_uri + original_path
+    server_uri = str(server_uri) + original_path
     params = dict(request.query_params)
 
     transaction_id = str(uuid.uuid4())
@@ -148,8 +141,8 @@ async def create_task(
     server_uri = get_data_source(server_id)
     if server_uri == "":
         raise HTTPException(status_code=404, detail="ServerID not found")
-    server_uri = server_uri + original_path
-    print(server_uri)
+    server_uri = str(server_uri) + str(original_path)
+
     params = dict(request.query_params)
 
     transaction_id = str(uuid.uuid4())
@@ -188,7 +181,6 @@ async def check_task(transaction_id: str, table: TableResource = Depends(get_tab
         raise HTTPException(status_code=404, detail="Item not found")
 
     response_data = response.get("Item")
-    print(response_data)
 
     backend_response = response_data.get("backend_response")
     backend_status = response_data.get("backend_status", "")
@@ -240,7 +232,6 @@ def _update_task_table(
         ExpressionAttributeValues={":r": backend_response, ":s": backend_status_type},
         ReturnValues="ALL_NEW",
     )
-    print(table_response)
 
 
 if __name__ == "__main__":

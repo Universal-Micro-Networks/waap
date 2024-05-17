@@ -1,4 +1,4 @@
-FROM python:3.12.0-slim-bullseye
+FROM python:3.12.3-slim-bullseye
 
 RUN apt update && apt install -y curl vim
 
@@ -9,12 +9,16 @@ RUN curl -sSL https://install.python-poetry.org | POETRY_HOME=/opt/poetry python
     poetry config virtualenvs.create false
 
 WORKDIR /app
+RUN chmod -R 777 /app
 
-COPY pyproject.toml poetry.lock /app/
+COPY pyproject.toml /app/
+COPY poetry.lock /app/
 
-RUN poetry install --no-root
+RUN poetry install
 RUN pip install schedule
 
-COPY ./handler /app
+COPY waap/handler /app/waap/handler
+COPY waap/middleware /app/waap/middleware
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8008"]
+
+CMD ["uvicorn", "waap.handler.main:app", "--host", "0.0.0.0", "--port", "8008"]
