@@ -81,6 +81,12 @@ services:
       - '8082:8082'
       - '8083:8083'
 
+  zap:
+    image: zaproxy/zap-stable
+    container_name: zap
+    volumes:
+      - ./zap:/zap/wrk/
+    tty: true
 
 volumes:
      db-store:
